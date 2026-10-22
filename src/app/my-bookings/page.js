@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { readJson } from '@/lib/compressImage';
 import StatusBadge from '@/components/BookingStatusBadge';
 import { formatDay, rupees, dayFromToday } from '@/lib/dates';
 import { Loader2, CalendarDays, Hotel, Users, BedDouble, MapPin } from 'lucide-react';
@@ -32,7 +33,7 @@ export default function MyBookingsPage() {
       try {
         const res = await fetch('/api/bookings', { headers: { Authorization: `Bearer ${token}` } });
         if (res.status === 401) return router.replace('/login?redirect=/my-bookings');
-        const data = await res.json();
+        const data = await readJson(res);
         if (data.success) setBookings(data.data);
         else setError(data.error || 'Could not load bookings');
       } catch {
@@ -54,7 +55,7 @@ export default function MyBookingsPage() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ status: 'CANCELLED' }),
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (!data.success) throw new Error(data.error);
       setBookings((list) => list.map((x) => (x.id === b.id ? { ...x, status: 'CANCELLED' } : x)));
     } catch (err) {

@@ -5,6 +5,7 @@ import { Plus, Loader2, Edit, Trash2, ImagePlus, X, GalleryHorizontal } from "lu
 import StatusBadge from "@/components/BookingStatusBadge";
 import { HeroHeading } from "@/app/landing/com/HotelHero";
 import { adminFetch } from "./adminFetch";
+import { compressImage } from "@/lib/compressImage";
 
 const EMPTY = { id: null, title: "", highlight: "", subtitle: "", sort_order: 0, status: "ACTIVE", image: null };
 
@@ -57,7 +58,7 @@ export default function HeroSlidesManagement() {
     setError("");
     const fd = new FormData();
     for (const key of ["title", "highlight", "subtitle", "sort_order", "status"]) fd.append(key, String(form[key] ?? ""));
-    if (file) fd.append("image", file);
+    if (file) fd.append("image", await compressImage(file, { maxWidth: 1920 }));
     try {
       const data = await adminFetch(form.id ? `/api/admin/hero-slides/${form.id}` : "/api/admin/hero-slides", {
         method: form.id ? "PUT" : "POST",

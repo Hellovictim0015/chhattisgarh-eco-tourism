@@ -158,8 +158,8 @@ export default function HotelsManagement({ initialFilter = "" }) {
                       )}
                       <button
                         type="button"
-                        onClick={() => patch(h, { is_featured: !Number(h.is_featured) }, Number(h.is_featured) ? "Removed from featured" : "Featured on home page")}
-                        title={Number(h.is_featured) ? "Unfeature" : "Feature on home page"}
+                        onClick={() => patch(h, { is_featured: !Number(h.is_featured) }, Number(h.is_featured) ? "Removed from featured" : "Featured — shown first in search")}
+                        title={Number(h.is_featured) ? "Unfeature" : "Feature (show first in search)"}
                         className={`p-1.5 rounded hover:bg-amber-50 ${Number(h.is_featured) ? "text-amber-500" : "text-slate-400"}`}
                       >
                         <Star className={`w-4 h-4 ${Number(h.is_featured) ? "fill-amber-400" : ""}`} />

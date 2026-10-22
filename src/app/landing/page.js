@@ -2,7 +2,7 @@ import Footer from '@/components/Footer'
 import Navbar from '@/components/Navbar'
 import React from 'react'
 import HotelHero from './com/HotelHero'
-import { StayTypes, PopularStays, WhyBook, ListYourHotel } from './com/HotelSections'
+import { StayTypes, HomeSections, WhyBook, ListYourHotel } from './com/HotelSections'
 
 function Homepage() {
   return (
@@ -10,7 +10,7 @@ function Homepage() {
       <Navbar/>
       <HotelHero/>
       <StayTypes/>
-      <PopularStays/>
+      <HomeSections/>
       <WhyBook/>
       <ListYourHotel/>
       <Footer/>

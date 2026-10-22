@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { readJson } from '@/lib/compressImage';
 import HotelForm from '@/components/HotelForm';
 import BookingsTable from '@/components/BookingsTable';
 import StatusBadge from '@/components/BookingStatusBadge';
@@ -44,7 +45,7 @@ export default function MyHotelsPage() {
       router.replace('/login?redirect=/my-hotels');
       throw new Error('Please login again');
     }
-    return res.json();
+    return readJson(res);
   }, [token, router]);
 
   const loadHotels = useCallback(async () => {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Plus, Loader2, Edit, Trash2, ImagePlus, X, Layers } from "lucide-react";
 import StatusBadge from "@/components/BookingStatusBadge";
 import { adminFetch } from "./adminFetch";
+import { compressImage } from "@/lib/compressImage";
 
 const EMPTY = { id: null, name: "", code: "", sort_order: 0, status: "ACTIVE", image: null };
 
@@ -60,7 +61,7 @@ export default function StayTypesManagement() {
     fd.append("code", form.code || "");
     fd.append("sort_order", String(form.sort_order || 0));
     fd.append("status", form.status);
-    if (file) fd.append("image", file);
+    if (file) fd.append("image", await compressImage(file, { maxWidth: 800 }));
     if (removeImage) fd.append("remove_image", "1");
     try {
       const data = await adminFetch(form.id ? `/api/admin/stay-types/${form.id}` : "/api/admin/stay-types", {

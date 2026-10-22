@@ -4,12 +4,14 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Hotel, Users, Mail, Menu, X, CalendarCheck, Clock, IndianRupee,
-  LogOut, ArrowRight, Loader2, LogIn, Layers, GalleryHorizontal,
+  LogOut, ArrowRight, Loader2, LogIn, Layers, GalleryHorizontal, Rows3, Settings,
 } from 'lucide-react';
 import HotelsManagement from './com/Hotels';
 import BookingsManagement from './com/Bookings';
 import StayTypesManagement from './com/StayTypes';
 import HeroSlidesManagement from './com/HeroSlides';
+import HomeSectionsManagement from './com/HomeSections';
+import SettingsManagement from './com/Settings';
 import ContactMessages from './com/ContactMessages';
 import UsersManagement from './com/Users';
 import { adminFetch } from './com/adminFetch';
@@ -25,9 +27,13 @@ const NAV = [
       { key: 'Stay Types', label: 'Stay Types', icon: Layers },
     ],
   },
-  { section: 'Home Page', items: [{ key: 'Hero Slides', label: 'Hero Slides', icon: GalleryHorizontal }] },
+  { section: 'Home Page', items: [
+      { key: 'Hero Slides', label: 'Hero Slides', icon: GalleryHorizontal },
+      { key: 'Home Sections', label: 'Home Sections', icon: Rows3 },
+    ] },
   { section: 'Enquiries', items: [{ key: 'Contact Messages', label: 'Contact Messages', icon: Mail }] },
   { section: 'Users', items: [{ key: 'Users', label: 'Users Management', icon: Users }] },
+  { section: 'Site', items: [{ key: 'Settings', label: 'Settings', icon: Settings }] },
 ];
 
 function StatCard({ label, value, hint, icon: Icon, onClick }) {
@@ -203,6 +209,10 @@ export default function AdminDashboard() {
             <StayTypesManagement />
           ) : activeView === 'Hero Slides' ? (
             <HeroSlidesManagement />
+          ) : activeView === 'Home Sections' ? (
+            <HomeSectionsManagement />
+          ) : activeView === 'Settings' ? (
+            <SettingsManagement />
           ) : activeView === 'Contact Messages' ? (
             <ContactMessages />
           ) : (

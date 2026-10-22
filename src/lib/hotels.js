@@ -2,6 +2,7 @@ import db from "@/lib/db";
 import { getUserFromRequest } from "@/lib/auth";
 import { saveImage, deleteUpload } from "@/lib/uploads";
 import { ADMIN_LOGIN_REQUIRED } from "@/lib/site";
+import { cleanPhone } from "@/lib/settings";
 
 export const HOTEL_STATUSES = ["ACTIVE", "PENDING", "INACTIVE"];
 export const BOOKING_STATUSES = ["PENDING", "CONFIRMED", "CANCELLED", "REJECTED", "COMPLETED"];
@@ -110,7 +111,7 @@ const clean = (v) => {
 };
 
 // Reads and validates the hotel form (multipart). Returns { fields, rooms } or { error }.
-//   fields: name, hotel_type, description, city, address, star_rating, phone, email,
+//   fields: name, hotel_type, description, city, address, star_rating, phone, whatsapp, email,
 //           check_in_time, check_out_time, policies
 //   rooms:  JSON array [{ id?, name, description, price_per_night, max_guests, total_rooms, bed_type, status, image? }]
 //           with an optional new image per room in file field `room_image_<index>`
@@ -123,6 +124,7 @@ export async function readHotelForm(formData) {
     address: clean(formData.get("address")),
     star_rating: toInt(formData.get("star_rating")),
     phone: clean(formData.get("phone")),
+    whatsapp: clean(formData.get("whatsapp")),
     email: clean(formData.get("email")),
     check_in_time: clean(formData.get("check_in_time")) || "12:00",
     check_out_time: clean(formData.get("check_out_time")) || "11:00",
@@ -134,6 +136,11 @@ export async function readHotelForm(formData) {
   const [[stayType]] = await db.query("SELECT id FROM stay_types WHERE code = ?", [fields.hotel_type]);
   if (!stayType) return { error: "Please choose a valid stay type" };
   if (fields.star_rating !== null && (fields.star_rating < 1 || fields.star_rating > 5)) fields.star_rating = null;
+  for (const [key, label] of [["phone", "Contact phone"], ["whatsapp", "WhatsApp number"]]) {
+    if (!fields[key]) continue;
+    fields[key] = cleanPhone(fields[key]);
+    if (!fields[key]) return { error: `${label} must be a valid phone number (10–15 digits)` };
+  }
 
   let rooms;
   try {

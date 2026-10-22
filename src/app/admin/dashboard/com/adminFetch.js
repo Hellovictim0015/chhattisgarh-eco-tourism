@@ -1,4 +1,5 @@
 import { ADMIN_LOGIN_REQUIRED } from '@/lib/site';
+import { readJson } from '@/lib/compressImage';
 
 // fetch() for the admin APIs: adds the admin token and sends the admin back to login when it has expired.
 export async function adminFetch(url, options = {}) {
@@ -9,7 +10,7 @@ export async function adminFetch(url, options = {}) {
     window.location.href = '/admin/auth';
     throw new Error('Session expired');
   }
-  return res.json();
+  return readJson(res);
 }
 
 export const adminToken = () => (typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null);

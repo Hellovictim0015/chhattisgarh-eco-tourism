@@ -51,39 +51,44 @@ export function StayTypes() {
   );
 }
 
-// Featured hotels, topped up with the newest ones when fewer than 8 are featured
-export function PopularStays() {
-  const [hotels, setHotels] = useState([]);
-  const [loading, setLoading] = useState(true);
+// Rows of hotels built by the admin (Admin -> Home Sections), in the admin's order
+export function HomeSections() {
+  const [sections, setSections] = useState(null);
 
   useEffect(() => {
-    fetch('/api/hotels?limit=8')
+    fetch('/api/home-sections')
       .then((r) => r.json())
-      .then((d) => d.success && setHotels(d.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .then((d) => setSections(d.success ? d.data : []))
+      .catch(() => setSections([]));
   }, []);
 
-  if (!loading && hotels.length === 0) return null;
-
-  return (
-    <section className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-12">
-      <div className="flex items-end justify-between mb-5">
-        <div>
-          <h2 className="text-xl md:text-2xl font-bold text-[#0a1629]">Popular stays</h2>
-          <p className="text-sm text-slate-500">Handpicked places guests love</p>
+  if (sections === null) {
+    return (
+      <section className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-12">
+        <div className="h-7 w-48 rounded bg-slate-200 animate-pulse mb-5" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
+          {Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-72 rounded-xl bg-slate-200 animate-pulse" />)}
         </div>
-        <Link href="/hotels" className="text-sm font-semibold text-emerald-700 flex items-center gap-1 hover:underline">
-          View all <ArrowRight className="w-4 h-4" />
+      </section>
+    );
+  }
+
+  return sections.map((section) => (
+    <section key={section.id} className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8 pt-12">
+      <div className="flex items-end justify-between gap-4 mb-5">
+        <div className="min-w-0">
+          <h2 className="text-xl md:text-2xl font-bold text-[#0a1629]">{section.title}</h2>
+          {section.subtitle && <p className="text-sm text-slate-500">{section.subtitle}</p>}
+        </div>
+        <Link href={`/collections/${section.slug}`} className="text-sm font-semibold text-emerald-700 flex items-center gap-1 hover:underline shrink-0">
+          View all{section.total_hotels > section.hotels.length ? ` (${section.total_hotels})` : ''} <ArrowRight className="w-4 h-4" />
         </Link>
       </div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-5">
-        {loading
-          ? Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-72 rounded-xl bg-slate-200 animate-pulse" />)
-          : hotels.map((h) => <HotelCard key={h.id} hotel={h} />)}
+        {section.hotels.map((h) => <HotelCard key={h.id} hotel={h} />)}
       </div>
     </section>
-  );
+  ));
 }
 
 const REASONS = [

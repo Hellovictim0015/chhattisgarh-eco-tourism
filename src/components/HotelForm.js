@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { compressImage, readJson } from '@/lib/compressImage';
 import { Plus, Trash2, Loader2, ArrowLeft, ImagePlus, X, BedDouble } from 'lucide-react';
 
 const EMPTY_ROOM = { name: '', description: '', price_per_night: '', max_guests: 2, total_rooms: 1, bed_type: '', status: 'ACTIVE', image: null };
@@ -47,7 +48,7 @@ function Thumb({ file, url, onRemove }) {
 export default function HotelForm({ apiBase, token, hotelId = null, isAdmin = false, onDone, onCancel }) {
   const [form, setForm] = useState({
     name: '', hotel_type: 'HOTEL', description: '', city: '', address: '', star_rating: '',
-    phone: '', email: '', check_in_time: '12:00', check_out_time: '11:00', policies: '',
+    phone: '', whatsapp: '', email: '', check_in_time: '12:00', check_out_time: '11:00', policies: '',
     status: 'ACTIVE', is_featured: false,
   });
   const [amenities, setAmenities] = useState([]);
@@ -79,13 +80,13 @@ export default function HotelForm({ apiBase, token, hotelId = null, isAdmin = fa
     const load = async () => {
       try {
         const res = await fetch(`${apiBase}/${hotelId}`, { headers: { Authorization: `Bearer ${token}` } });
-        const data = await res.json();
+        const data = await readJson(res);
         if (!data.success) throw new Error(data.error || 'Could not load hotel');
         const h = data.data;
         setForm({
           name: h.name || '', hotel_type: h.hotel_type || 'HOTEL', description: h.description || '',
           city: h.city || '', address: h.address || '', star_rating: h.star_rating || '',
-          phone: h.phone || '', email: h.email || '', check_in_time: h.check_in_time || '12:00',
+          phone: h.phone || '', whatsapp: h.whatsapp || '', email: h.email || '', check_in_time: h.check_in_time || '12:00',
           check_out_time: h.check_out_time || '11:00', policies: h.policies || '',
           status: h.status, is_featured: !!h.is_featured,
         });
@@ -123,8 +124,9 @@ export default function HotelForm({ apiBase, token, hotelId = null, isAdmin = fa
     setError('');
     if (rooms.length === 0) return setError('Add at least one room type');
 
+    setSaving(true); // shrinking the photos below can take a moment
     const fd = new FormData();
-    for (const key of ['name', 'hotel_type', 'description', 'city', 'address', 'star_rating', 'phone', 'email', 'check_in_time', 'check_out_time', 'policies']) {
+    for (const key of ['name', 'hotel_type', 'description', 'city', 'address', 'star_rating', 'phone', 'whatsapp', 'email', 'check_in_time', 'check_out_time', 'policies']) {
       fd.append(key, form[key] ?? '');
     }
     if (isAdmin) {
@@ -133,20 +135,19 @@ export default function HotelForm({ apiBase, token, hotelId = null, isAdmin = fa
     }
     fd.append('amenities', selectedAmenities.join(','));
     fd.append('existing_images', JSON.stringify(existingImages));
-    newImages.forEach((f) => fd.append('images', f));
+    for (const f of newImages) fd.append('images', await compressImage(f, { maxWidth: 1600 }));
     fd.append('rooms', JSON.stringify(rooms.map(({ id, name, description, price_per_night, max_guests, total_rooms, bed_type, status, image }) => (
       { id, name, description, price_per_night, max_guests, total_rooms, bed_type, status, image }
     ))));
-    Object.entries(roomFiles).forEach(([i, f]) => fd.append(`room_image_${i}`, f));
+    for (const [i, f] of Object.entries(roomFiles)) fd.append(`room_image_${i}`, await compressImage(f, { maxWidth: 1200 }));
 
-    setSaving(true);
     try {
       const res = await fetch(hotelId ? `${apiBase}/${hotelId}` : apiBase, {
         method: hotelId ? 'PUT' : 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: fd,
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (!data.success) throw new Error(data.error || 'Could not save hotel');
       onDone?.(data.message);
     } catch (err) {
@@ -201,8 +202,11 @@ export default function HotelForm({ apiBase, token, hotelId = null, isAdmin = fa
           <Field label="Address / landmark">
             <input value={form.address} onChange={set('address')} className={inputCls} />
           </Field>
-          <Field label="Contact phone">
-            <input value={form.phone} onChange={set('phone')} className={inputCls} />
+          <Field label="Contact phone (Call button)">
+            <input type="tel" value={form.phone} onChange={set('phone')} className={inputCls} placeholder="Leave empty to use the site number" />
+          </Field>
+          <Field label="WhatsApp number">
+            <input type="tel" value={form.whatsapp} onChange={set('whatsapp')} className={inputCls} placeholder="Leave empty to use the site number" />
           </Field>
           <Field label="Contact email">
             <input type="email" value={form.email} onChange={set('email')} className={inputCls} />
@@ -230,7 +234,7 @@ export default function HotelForm({ apiBase, token, hotelId = null, isAdmin = fa
               </Field>
               <label className="flex items-center gap-2 text-sm text-slate-700 md:mt-7">
                 <input type="checkbox" checked={form.is_featured} onChange={set('is_featured')} className="w-4 h-4 accent-emerald-700" />
-                Feature on home page
+                Featured (shown first in search results)
               </label>
             </>
           )}

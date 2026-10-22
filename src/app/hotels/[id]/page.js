@@ -5,6 +5,8 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { readJson } from '@/lib/compressImage';
+import ContactButtons from '@/components/ContactButtons';
 import { dayFromToday, addDays, nightsBetween, formatDay, rupees } from '@/lib/dates';
 import {
   MapPin, Star, Loader2, Hotel, Users, BedDouble, CheckCircle2, Clock, Phone, Mail,
@@ -42,6 +44,12 @@ function HotelDetailContent() {
 
   const nights = nightsBetween(checkIn, checkOut);
 
+  // Site-wide call / WhatsApp numbers, used when the hotel has none of its own
+  const [siteContact, setSiteContact] = useState({ contact_phone: '', whatsapp_number: '' });
+  useEffect(() => {
+    fetch('/api/settings').then((r) => r.json()).then((d) => d.success && setSiteContact(d.data)).catch(() => {});
+  }, []);
+
   // Reload the hotel (with per-room availability) whenever the dates change
   useEffect(() => {
     if (!id) return;
@@ -57,7 +65,7 @@ function HotelDetailContent() {
         const res = await fetch(`/api/hotels/${id}?check_in=${checkIn}&check_out=${checkOut}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
-        const data = await res.json();
+        const data = await readJson(res);
         if (res.status === 404) setNotFound(true);
         else if (!data.success) setDateError(data.error || 'Could not check availability');
         else setHotel(data.data);
@@ -90,6 +98,12 @@ function HotelDetailContent() {
 
   const images = useMemo(() => hotel?.images || [], [hotel]);
 
+  const contact = {
+    phone: hotel?.phone || siteContact.contact_phone,
+    whatsapp: hotel?.whatsapp || siteContact.whatsapp_number,
+    message: hotel ? `Hi, I want to know about booking at ${hotel.name}${nights > 0 ? ` (${formatDay(checkIn)} – ${formatDay(checkOut)})` : ''}.` : '',
+  };
+
   const chooseRoom = (room) => {
     setSelectedRoomId(room.id);
     setRoomsCount(Math.min(room.available, Math.max(1, Math.ceil(guests / room.max_guests))));
@@ -119,7 +133,7 @@ function HotelDetailContent() {
           rooms_count: effectiveRooms, guests, ...guest,
         }),
       });
-      const data = await res.json();
+      const data = await readJson(res);
       if (res.status === 401) {
         router.push(`/login?redirect=${encodeURIComponent(`/hotels/${id}?check_in=${checkIn}&check_out=${checkOut}&guests=${guests}`)}`);
         return;
@@ -164,7 +178,7 @@ function HotelDetailContent() {
   const inputCls = 'w-full bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-emerald-600';
 
   return (
-    <main className="min-h-screen bg-slate-50 font-sans">
+    <main className={`min-h-screen bg-slate-50 font-sans ${contact.phone || contact.whatsapp ? 'pb-20 sm:pb-0' : ''}`}>
       <Navbar />
 
       {hotel.status !== 'ACTIVE' && (
@@ -197,6 +211,7 @@ function HotelDetailContent() {
             <p className="flex items-center gap-1 text-sm text-slate-500 mt-1">
               <MapPin className="w-4 h-4 text-[#d9982b]" /> {[hotel.address, hotel.city].filter(Boolean).join(', ')}
             </p>
+            <ContactButtons {...contact} className="hidden sm:flex mt-3" />
           </div>
           {hotel.rooms.length > 0 && (
             <div className="text-right">
@@ -364,7 +379,7 @@ function HotelDetailContent() {
               <div className="grid sm:grid-cols-2 gap-3 text-sm text-slate-600">
                 <span className="flex items-center gap-2"><Clock className="w-4 h-4 text-slate-400" /> Check-in {hotel.check_in_time} · Check-out {hotel.check_out_time}</span>
                 <span className="flex items-center gap-2"><ShieldCheck className="w-4 h-4 text-slate-400" /> Pay at hotel — no advance payment</span>
-                {hotel.phone && <a href={`tel:${hotel.phone}`} className="flex items-center gap-2 hover:text-emerald-700"><Phone className="w-4 h-4 text-slate-400" /> {hotel.phone}</a>}
+                {contact.phone && <a href={`tel:${contact.phone}`} className="flex items-center gap-2 hover:text-emerald-700"><Phone className="w-4 h-4 text-slate-400" /> {contact.phone}</a>}
                 {hotel.email && <a href={`mailto:${hotel.email}`} className="flex items-center gap-2 hover:text-emerald-700"><Mail className="w-4 h-4 text-slate-400" /> {hotel.email}</a>}
               </div>
               {hotel.policies && <p className="text-sm text-slate-600 whitespace-pre-line mt-3 pt-3 border-t border-slate-100">{hotel.policies}</p>}
@@ -428,9 +443,22 @@ function HotelDetailContent() {
                 <p className="text-[11px] text-slate-500 text-center">No payment now — pay at the hotel. The hotel confirms your booking.</p>
               </form>
             )}
+            {(contact.phone || contact.whatsapp) && (
+              <div className="mt-4 pt-4 border-t border-slate-100">
+                <p className="text-xs text-slate-500 mb-2 text-center">Have a question? Talk to us</p>
+                <ContactButtons {...contact} size="lg" />
+              </div>
+            )}
           </aside>
         </div>
       </div>
+
+      {/* Mobile: call / WhatsApp always within thumb reach */}
+      {(contact.phone || contact.whatsapp) && (
+        <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 bg-white/95 backdrop-blur border-t border-slate-200 px-4 py-2.5 shadow-[0_-4px_16px_rgba(10,22,41,0.08)]">
+          <ContactButtons {...contact} size="lg" />
+        </div>
+      )}
 
       {/* Fullscreen gallery */}
       {galleryOpen && images.length > 0 && (

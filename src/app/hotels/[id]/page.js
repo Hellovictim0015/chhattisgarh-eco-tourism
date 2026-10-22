@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useMemo, useState } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
@@ -15,7 +15,6 @@ import {
 
 function HotelDetailContent() {
   const { id } = useParams();
-  const router = useRouter();
   const searchParams = useSearchParams();
 
   // Dates from the URL are ignored when they are in the past
@@ -89,7 +88,12 @@ function HotelDetailContent() {
     }
   }, []);
 
-  const selectedRoom = hotel?.rooms.find((r) => r.id === selectedRoomId) || null;
+  // The booking form is always open: it uses the room the guest picked, or else the first
+  // room type still available for the chosen dates
+  const selectedRoom =
+    hotel?.rooms.find((r) => r.id === selectedRoomId && r.available !== 0) ||
+    hotel?.rooms.find((r) => r.available > 0) ||
+    null;
   // If availability drops below what was chosen, clamp the room count
   const maxRooms = selectedRoom ? Math.max(1, Math.min(selectedRoom.available ?? 1, 10)) : 1;
   const effectiveRooms = Math.min(roomsCount, maxRooms);
@@ -104,21 +108,19 @@ function HotelDetailContent() {
     message: hotel ? `Hi, I want to know about booking at ${hotel.name}${nights > 0 ? ` (${formatDay(checkIn)} – ${formatDay(checkOut)})` : ''}.` : '',
   };
 
-  const chooseRoom = (room) => {
+  const isLoggedIn = typeof window !== 'undefined' && !!localStorage.getItem('authToken');
+
+  const chooseRoom = (room, { scroll = true } = {}) => {
     setSelectedRoomId(room.id);
     setRoomsCount(Math.min(room.available, Math.max(1, Math.ceil(guests / room.max_guests))));
     setBooking({ state: 'idle', message: '', data: null });
-    setTimeout(() => document.getElementById('booking-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+    if (scroll) setTimeout(() => document.getElementById('booking-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
 
   const submitBooking = async (e) => {
     e.preventDefault();
+    // Login is optional; a logged-in guest's booking also appears in "My Bookings"
     const token = localStorage.getItem('authToken');
-    if (!token) {
-      const back = `/hotels/${id}?check_in=${checkIn}&check_out=${checkOut}&guests=${guests}`;
-      router.push(`/login?redirect=${encodeURIComponent(back)}`);
-      return;
-    }
     if (guests > capacity) {
       setBooking({ state: 'error', message: `This selection fits at most ${capacity} guests. Add another room.` });
       return;
@@ -127,17 +129,13 @@ function HotelDetailContent() {
     try {
       const res = await fetch('/api/bookings', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({
           room_id: selectedRoom.id, check_in: checkIn, check_out: checkOut,
           rooms_count: effectiveRooms, guests, ...guest,
         }),
       });
       const data = await readJson(res);
-      if (res.status === 401) {
-        router.push(`/login?redirect=${encodeURIComponent(`/hotels/${id}?check_in=${checkIn}&check_out=${checkOut}&guests=${guests}`)}`);
-        return;
-      }
       if (!data.success) throw new Error(data.error || 'Booking failed');
       setBooking({ state: 'done', message: data.message, data: data.data });
     } catch (err) {
@@ -307,7 +305,7 @@ function HotelDetailContent() {
                 <div className="space-y-3">
                   {hotel.rooms.map((room) => {
                     const soldOut = room.available === 0;
-                    const selected = room.id === selectedRoomId;
+                    const selected = room.id === selectedRoom?.id;
                     return (
                       <div
                         key={room.id}
@@ -344,7 +342,7 @@ function HotelDetailContent() {
                               selected ? 'bg-emerald-700 text-white' : 'border border-emerald-700 text-emerald-700 hover:bg-emerald-50'
                             }`}
                           >
-                            {selected ? 'Selected' : 'Select'}
+                            {selected ? 'Selected' : 'Book this'}
                           </button>
                         </div>
                       </div>
@@ -397,18 +395,43 @@ function HotelDetailContent() {
                   <span className="text-slate-500 block text-xs">Booking ID</span>
                   <span className="font-mono font-bold text-lg tracking-wider text-[#0a1629]">{booking.data.booking_code}</span>
                 </div>
-                <Link href="/my-bookings" className="block bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold py-2.5 rounded-lg">
-                  View my bookings
-                </Link>
+                {isLoggedIn ? (
+                  <Link href="/my-bookings" className="block bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold py-2.5 rounded-lg">
+                    View my bookings
+                  </Link>
+                ) : (
+                  <p className="text-xs text-slate-500">
+                    Please note this Booking ID. The hotel will contact you on <b>{booking.data.guest_phone}</b> to confirm.
+                  </p>
+                )}
               </div>
             ) : !selectedRoom ? (
               <div className="text-center py-6">
                 <BedDouble className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                <p className="text-sm text-slate-500">Select your dates and a room to book.</p>
+                <p className="text-sm text-slate-500">
+                  {hotel.rooms.length ? 'All rooms are booked for these dates. Please try other dates.' : 'No rooms are open for booking right now.'}
+                </p>
               </div>
             ) : (
               <form onSubmit={submitBooking} className="space-y-3">
-                <h2 className="font-bold text-[#0a1629]">Book {selectedRoom.name}</h2>
+                <h2 className="font-bold text-[#0a1629]">Book your stay</h2>
+                <label className="block text-xs font-semibold text-slate-500">
+                  Room type
+                  <select
+                    value={selectedRoom.id}
+                    onChange={(e) => {
+                      const room = hotel.rooms.find((r) => r.id === Number(e.target.value));
+                      if (room) chooseRoom(room, { scroll: false });
+                    }}
+                    className={`${inputCls} mt-1 font-medium text-slate-800`}
+                  >
+                    {hotel.rooms.map((r) => (
+                      <option key={r.id} value={r.id} disabled={r.available === 0}>
+                        {r.name} — {rupees(r.price_per_night)}/night{r.available === 0 ? ' (sold out)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <div className="bg-slate-50 rounded-lg p-3 text-sm space-y-1">
                   <div className="flex justify-between"><span className="text-slate-500">Dates</span><span className="font-medium">{formatDay(checkIn)} – {formatDay(checkOut)}</span></div>
                   <div className="flex justify-between items-center">

@@ -21,13 +21,13 @@ export async function GET(req) {
 }
 
 // ==========================================
-// POST: Book a room (login required). Payment is taken at the hotel, so the booking
-// starts PENDING until the hotel owner / admin confirms it.
+// POST: Book a room. Login is optional: a logged-in guest's booking shows up in "My Bookings",
+// a guest without an account books with name + phone and keeps the booking ID.
+// Payment is taken at the hotel, so the booking starts PENDING until the hotel owner / admin confirms it.
 // The room row is locked for the transaction so two guests cannot take the last room together.
 // ==========================================
 export async function POST(req) {
-  const user = getUserFromRequest(req);
-  if (!user) return NextResponse.json({ success: false, error: "Please login to book" }, { status: 401 });
+  const user = getUserFromRequest(req); // null for guests without an account
 
   let conn;
   try {
@@ -43,6 +43,9 @@ export async function POST(req) {
     if (!roomId) return NextResponse.json({ success: false, error: "Please choose a room" }, { status: 400 });
     if (!guestName || !guestPhone) {
       return NextResponse.json({ success: false, error: "Guest name and phone number are required" }, { status: 400 });
+    }
+    if (guestPhone.replace(/\D/g, "").length < 10) {
+      return NextResponse.json({ success: false, error: "Please enter a valid 10-digit phone number" }, { status: 400 });
     }
     const stay = validateStay(body.check_in, body.check_out);
     if (stay.error) return NextResponse.json({ success: false, error: stay.error }, { status: 400 });
@@ -85,7 +88,7 @@ export async function POST(req) {
           `INSERT INTO bookings (booking_code, hotel_id, room_id, user_id, guest_name, guest_email, guest_phone,
             check_in, check_out, rooms_count, guests, nights, total_amount, special_request)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [newBookingCode(), room.hotel_id, room.id, user.id, guestName, guestEmail, guestPhone,
+          [newBookingCode(), room.hotel_id, room.id, user?.id || null, guestName, guestEmail, guestPhone,
             body.check_in, body.check_out, roomsCount, guests, stay.nights, totalAmount, specialRequest]
         );
         bookingId = res.insertId;

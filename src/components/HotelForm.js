@@ -54,6 +54,8 @@ export default function HotelForm({ apiBase, token, hotelId = null, isAdmin = fa
   const [amenities, setAmenities] = useState([]);
   const [stayTypes, setStayTypes] = useState([]);
   const [selectedAmenities, setSelectedAmenities] = useState([]);
+  const [otherAmenities, setOtherAmenities] = useState([]); // facility names typed under "Other"
+  const [otherInput, setOtherInput] = useState('');
   const [existingImages, setExistingImages] = useState([]); // URLs already saved
   const [newImages, setNewImages] = useState([]); // File objects
   const [rooms, setRooms] = useState([{ ...EMPTY_ROOM }]);
@@ -90,7 +92,8 @@ export default function HotelForm({ apiBase, token, hotelId = null, isAdmin = fa
           check_out_time: h.check_out_time || '11:00', policies: h.policies || '',
           status: h.status, is_featured: !!h.is_featured,
         });
-        setSelectedAmenities(h.amenities.map((a) => a.id));
+        setSelectedAmenities(h.amenities.filter((a) => a.status !== 'INACTIVE').map((a) => a.id));
+        setOtherAmenities(h.amenities.filter((a) => a.status === 'INACTIVE').map((a) => a.name));
         setExistingImages(h.images.map((i) => i.image));
         setRooms(h.rooms.length ? h.rooms.map((r) => ({ ...r, price_per_night: Number(r.price_per_night) })) : [{ ...EMPTY_ROOM }]);
       } catch (err) {
@@ -119,6 +122,16 @@ export default function HotelForm({ apiBase, token, hotelId = null, isAdmin = fa
     });
   };
 
+  // Adds the typed facility; a name already in the list is ticked there instead
+  const addOther = () => {
+    const name = otherInput.trim().replace(/\s+/g, ' ');
+    if (!name) return;
+    const listed = amenities.find((a) => a.name.toLowerCase() === name.toLowerCase());
+    if (listed) setSelectedAmenities((l) => (l.includes(listed.id) ? l : [...l, listed.id]));
+    else if (!otherAmenities.some((x) => x.toLowerCase() === name.toLowerCase())) setOtherAmenities((l) => [...l, name]);
+    setOtherInput('');
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setError('');
@@ -134,6 +147,7 @@ export default function HotelForm({ apiBase, token, hotelId = null, isAdmin = fa
       fd.append('is_featured', form.is_featured ? '1' : '0');
     }
     fd.append('amenities', selectedAmenities.join(','));
+    fd.append('other_amenities', JSON.stringify(otherAmenities));
     fd.append('existing_images', JSON.stringify(existingImages));
     for (const f of newImages) fd.append('images', await compressImage(f, { maxWidth: 1600 }));
     fd.append('rooms', JSON.stringify(rooms.map(({ id, name, description, price_per_night, max_guests, total_rooms, bed_type, status, image }) => (
@@ -257,7 +271,12 @@ export default function HotelForm({ apiBase, token, hotelId = null, isAdmin = fa
               accept="image/*"
               multiple
               className="hidden"
-              onChange={(e) => { setNewImages((l) => [...l, ...Array.from(e.target.files)]); e.target.value = ''; }}
+              onChange={(e) => {
+                // Copy the files first: clearing the input empties e.target.files before the state updater runs
+                const picked = Array.from(e.target.files || []);
+                e.target.value = '';
+                if (picked.length) setNewImages((l) => [...l, ...picked]);
+              }}
             />
           </label>
         </div>
@@ -267,7 +286,7 @@ export default function HotelForm({ apiBase, token, hotelId = null, isAdmin = fa
       <section className="bg-white rounded-lg border border-slate-200 p-5">
         <h3 className="font-semibold text-slate-900 mb-3">Facilities</h3>
         {amenities.length === 0 ? (
-          <p className="text-sm text-slate-400 italic">No facilities configured.</p>
+          <p className="text-sm text-slate-400 italic">No facilities in the list yet — add your own under Other.</p>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {amenities.map((a) => (
@@ -283,6 +302,41 @@ export default function HotelForm({ apiBase, token, hotelId = null, isAdmin = fa
             ))}
           </div>
         )}
+
+        {/* Other: facilities not in the list, typed by hand */}
+        <div className="mt-4 pt-4 border-t border-slate-100">
+          <span className="block text-sm font-medium text-slate-700 mb-1.5">Other facilities</span>
+          <div className="flex gap-2 max-w-md">
+            <input
+              value={otherInput}
+              maxLength={150}
+              onChange={(e) => setOtherInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addOther();
+                }
+              }}
+              placeholder="e.g. Boating, Bird watching, Yoga deck"
+              className={inputCls}
+            />
+            <button type="button" onClick={addOther} className="px-4 py-2 text-sm font-semibold border border-emerald-700 text-emerald-700 rounded-md hover:bg-emerald-50 flex items-center gap-1 shrink-0">
+              <Plus className="w-4 h-4" /> Add
+            </button>
+          </div>
+          {otherAmenities.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {otherAmenities.map((name) => (
+                <span key={name} className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 border border-emerald-200 text-sm px-2.5 py-1 rounded-full">
+                  {name}
+                  <button type="button" onClick={() => setOtherAmenities((l) => l.filter((x) => x !== name))} className="text-emerald-700 hover:text-red-600" aria-label={`Remove ${name}`}>
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </section>
 
       <section className="bg-white rounded-lg border border-slate-200 p-5">
@@ -331,7 +385,11 @@ export default function HotelForm({ apiBase, token, hotelId = null, isAdmin = fa
                     {(roomFiles[i] || room.image) && <Thumb key={roomFiles[i]?.name || room.image} file={roomFiles[i]} url={roomFiles[i] ? null : room.image} />}
                     <label className="text-xs font-semibold text-emerald-700 cursor-pointer hover:underline">
                       {roomFiles[i] || room.image ? 'Change' : 'Upload'}
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files[0] && setRoomFiles((f) => ({ ...f, [i]: e.target.files[0] }))} />
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                        const picked = e.target.files?.[0];
+                        e.target.value = '';
+                        if (picked) setRoomFiles((f) => ({ ...f, [i]: picked }));
+                      }} />
                     </label>
                   </div>
                 </div>

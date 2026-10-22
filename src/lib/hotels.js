@@ -80,7 +80,7 @@ export async function getHotelDetail(id, { activeRoomsOnly = false } = {}) {
   const [[images], [amenities], [rooms]] = await Promise.all([
     db.query("SELECT id, image FROM hotel_images WHERE hotel_id = ? ORDER BY sort_order, id", [id]),
     db.query(
-      `SELECT a.id, a.name, a.icon FROM hotel_amenities ha
+      `SELECT a.id, a.name, a.icon, a.status FROM hotel_amenities ha
        JOIN amenities a ON a.id = ha.amenity_id WHERE ha.hotel_id = ? ORDER BY a.name`,
       [id]
     ),
@@ -210,11 +210,29 @@ export async function saveHotel({ hotelId = null, fields, rooms, formData, extra
       hotelId = res.insertId;
     }
 
-    // Amenities: replace the whole set
+    // Amenities: replace the whole set. `other_amenities` holds facilities typed in by hand
+    // (JSON list of names); each reuses an amenity with the same name or becomes a new one that
+    // stays INACTIVE, so it shows on this hotel without joining everyone's checklist.
     const amenityIds = String(formData.get("amenities") || "")
       .split(",")
       .map((s) => toInt(s))
       .filter(Boolean);
+    let otherNames = [];
+    try {
+      otherNames = JSON.parse(formData.get("other_amenities") || "[]");
+    } catch {
+      otherNames = [];
+    }
+    for (const raw of Array.isArray(otherNames) ? otherNames.slice(0, 30) : []) {
+      const name = String(raw || "").trim().replace(/\s+/g, " ").slice(0, 150);
+      if (!name) continue;
+      const [[found]] = await conn.query("SELECT id FROM amenities WHERE LOWER(name) = LOWER(?) LIMIT 1", [name]);
+      if (found) amenityIds.push(Number(found.id));
+      else {
+        const [ins] = await conn.query("INSERT INTO amenities (name, status) VALUES (?, 'INACTIVE')", [name]);
+        amenityIds.push(ins.insertId);
+      }
+    }
     await conn.query("DELETE FROM hotel_amenities WHERE hotel_id = ?", [hotelId]);
     if (amenityIds.length) {
       await conn.query("INSERT IGNORE INTO hotel_amenities (hotel_id, amenity_id) VALUES ?", [

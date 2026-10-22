@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Hotel, Users, Mail, Menu, X, CalendarCheck, Clock, IndianRupee,
-  LogOut, ArrowRight, Loader2, LogIn, Layers, GalleryHorizontal, Rows3, Settings,
+  LogOut, ArrowRight, Loader2, LogIn, Layers, GalleryHorizontal, Rows3, Settings, PanelBottom,
 } from 'lucide-react';
 import HotelsManagement from './com/Hotels';
 import BookingsManagement from './com/Bookings';
@@ -12,6 +12,7 @@ import StayTypesManagement from './com/StayTypes';
 import HeroSlidesManagement from './com/HeroSlides';
 import HomeSectionsManagement from './com/HomeSections';
 import SettingsManagement from './com/Settings';
+import FooterSettings from './com/FooterSettings';
 import ContactMessages from './com/ContactMessages';
 import UsersManagement from './com/Users';
 import { adminFetch } from './com/adminFetch';
@@ -33,7 +34,10 @@ const NAV = [
     ] },
   { section: 'Enquiries', items: [{ key: 'Contact Messages', label: 'Contact Messages', icon: Mail }] },
   { section: 'Users', items: [{ key: 'Users', label: 'Users Management', icon: Users }] },
-  { section: 'Site', items: [{ key: 'Settings', label: 'Settings', icon: Settings }] },
+  { section: 'Site', items: [
+    { key: 'Settings', label: 'Settings', icon: Settings },
+    { key: 'Footer', label: 'Footer', icon: PanelBottom },
+  ] },
 ];
 
 function StatCard({ label, value, hint, icon: Icon, onClick }) {
@@ -211,6 +215,8 @@ export default function AdminDashboard() {
             <HeroSlidesManagement />
           ) : activeView === 'Home Sections' ? (
             <HomeSectionsManagement />
+          ) : activeView === 'Footer' ? (
+            <FooterSettings />
           ) : activeView === 'Settings' ? (
             <SettingsManagement />
           ) : activeView === 'Contact Messages' ? (

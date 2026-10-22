@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import db from "@/lib/db";
 import { getAdminFromRequest } from "@/lib/hotels";
-import { SETTING_FIELDS, getSettings, cleanPhone } from "@/lib/settings";
+import { SETTING_FIELDS, getSettings, getFooter, saveFooter, cleanPhone } from "@/lib/settings";
 
 const unauthorized = () => NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
 export async function GET(req) {
   try {
     if (!getAdminFromRequest(req)) return unauthorized();
-    return NextResponse.json({ success: true, data: await getSettings() });
+    const [settings, footer] = await Promise.all([getSettings(), getFooter()]);
+    return NextResponse.json({ success: true, data: { ...settings, footer } });
   } catch (error) {
     console.error("GET Admin Settings Error:", error);
     return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });
@@ -16,7 +17,7 @@ export async function GET(req) {
 }
 
 // ==========================================
-// PUT: Save settings  { contact_phone, whatsapp_number }  — empty clears a value
+// PUT: Save settings  { contact_phone, whatsapp_number, footer }  — any subset; an empty number clears it
 // ==========================================
 export async function PUT(req) {
   try {
@@ -34,7 +35,15 @@ export async function PUT(req) {
     if (rows.length) {
       await db.query("INSERT INTO site_settings (setting_key, value) VALUES ? ON DUPLICATE KEY UPDATE value = VALUES(value)", [rows]);
     }
-    return NextResponse.json({ success: true, message: "Settings saved", data: await getSettings() });
+    if (body.footer !== undefined) {
+      const email = String(body.footer?.email || "").trim();
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return NextResponse.json({ success: false, error: "Footer email is not a valid email address" }, { status: 400 });
+      }
+      await saveFooter(body.footer);
+    }
+    const [settings, footer] = await Promise.all([getSettings(), getFooter()]);
+    return NextResponse.json({ success: true, message: "Settings saved", data: { ...settings, footer } });
   } catch (error) {
     console.error("PUT Admin Settings Error:", error);
     return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });
